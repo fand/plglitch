@@ -1,5 +1,12 @@
-my $CODE = "00db";  # frame start code
 open IN, '<', $ARGV[0];
 read IN, my $buf, -s $ARGV[0];
+my ($buf_new, $i, $first) = ("", 13, 1);
+while ($i < length $buf) {
+    my $l = (substr($buf, $i, 1) =~ /\x08|\x09|\x12/) * (unpack('N', substr($buf, $i+1, 4)) >> 8);
+    if (substr($buf, $i, 20) =~ /^\x09.{10}(.).*$/ && unpack('B8', $1) =~ /^0001....$/ && rand(10) < 7) {
+        $first? ($first = 0) : (substr($buf, $i, $l+15, "") && ($i -= ($l + 15)));
+    }
+    $i += 11 + $l + 4;  # tag + size + lasttagsize
+}
 open OUT, '>', $ARGV[1];
-print OUT join $CODE, grep { !($_ =~ "^.{6}\x01\xB0") } split($CODE, $buf);
+print OUT $buf;
