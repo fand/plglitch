@@ -1,5 +1,5 @@
-open IN, '<', $ARGV[0];
-read IN, my $buf, -s $ARGV[0];
+open $f_in, '<', $ARGV[0];
+read $f_in, my $buf, -s $ARGV[0];
 my ($movi, $idx1) = (index($buf, "movi"), index($buf, "idx1"));
 my @frames = map {[unpack('a4VVV', substr($buf, $idx1+8+$_*16, 16))]} 0..((unpack('V', substr($buf, $idx1+4, 4)) / 16)-1);
 my ($movi_new, $idx1_new, $first) = ("movi", substr($buf, $idx1, 8), 1);
@@ -14,5 +14,5 @@ for (@frames) {
         $idx1_new .= pack('a4VVV', @$_);
     }
 }
-open OUT, '>', $ARGV[1];
-print OUT substr($buf, 0, $movi) . $movi_new . $idx1_new;
+open $f_out, '>', $ARGV[1];
+print $f_out substr($buf, 0, $movi) . $movi_new . $idx1_new;

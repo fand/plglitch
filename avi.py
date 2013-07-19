@@ -1,101 +1,36 @@
-import random
+import sys
+import struct
 
-CODE_FRAME = "00dc"
+with open(sys.argv[1], 'rb') as f_in:
+    binary = f_in.read()
 
+idx1 = binary.index('idx1')
+if idx1 != -1:
+    movi  = binary.index('movi')
 
-class Frame:
+frames = []
+len_idx1 = struct.unpack('<L', binary[idx1 + 4 : idx1 + 8])[0]
+i = 8  # "idx1" + len_idx1(4bytes)
+while i < len_idx1:
+    # frame = (id, flag, offset, length)
+    frames.append(struct.unpack('<4sLLL', binary[idx1+i: idx1+i+16]))
+    i += 16
 
-    def __init__(self, binary, _type):
-        self.binary = binary
-        self.type = self.frameType(_type)
+idx1_new , movi_new = binary[idx1:idx1+8], binary[movi:movi+4]
 
-    def frameType(self, s):
-        if s == "\x01\xB0":
-            return "I"
-        if s == "\x01\xB6":
-            return "P"
-        else:
-            return "O"
+first = True
+for f in frames:
+    if f[0][:3] == '00d' and f[1] & 0x00000010 and not first:
+        movi_new += f[0] + "\x00\x00\x00\x00"
+    else:
+        if first:
+            first = False
+        data = binary[movi + f[2] : movi + f[2] + f[3] + 8]
+        if len(data) % 2 == 1:
+            data += "\x00"
+        movi_new += data        
+        idx1_new += struct.pack('<4sLLL', f[0], f[1], f[2], f[3])
 
-        
-class AVI:
-    
-    def __init__(self, path):
-        with open(path, 'rb') as f:
-            self.binary = f.read()
-        self._initFrame()
+with open(sys.argv[2], 'wb') as f_out:
+    f_out.write(binary[:movi] + movi_new + idx1_new)
 
-
-    def _initFrame(self):
-        last = self.binary.find(CODE_FRAME)
-        self.header = self.binary[:last]
-        self.frames = []
-        while True:
-            i = self.binary[(last + 1):].find(CODE_FRAME)
-            if i == -1:
-                break
-            f = Frame(self.binary[last : (last + 1) + i], self.binary[last + 10 : last + 12])
-            self.frames.append(f)
-            last = (last + 1) + i 
-
-        self.footer = self.binary[last:]
-
-        
-    def mosh(self):
-        first = True
-        for i in range(len(self.frames)):
-            if self.frames[i].type == "I":
-                if first:
-                    first = False
-                    continue
-                self.frames[i].binary = ""
-
-                
-    def slide(self, duration):
-        slides = filter(lambda f: f.type == "P", self.frames)
-        sliding = False
-        i = 0
-        while i < len(self.frames):
-            if sliding:
-#            if sliding and f_slide != None:                
-                print ",",
-                sliding = False
-                
-                f_slide = slides[random.randint(0, len(slides))]
-                for j in range(duration):
-
-                    self.frames.insert(i, f_slide)
-                i += duration
-                
-            else:
-                if self.frames[i].type == "I":
-                    sliding = True
-                    self.frames[i].binary = ""
-                i += 1
-                    
-                
-    def write(self, path):
-        s = "".join([f.binary for f in self.frames])
-        self.binary = self.header + s + self.footer
-        with open(path, 'wb') as f:
-            f.write(self.binary)
-        
-
-
-
-if __name__=='__main__':
-    import sys
-
-    if len(sys.argv) != 3:
-        print "args error"
-        exit()
-    
-    avi = AVI(sys.argv[1])
-    avi.mosh()
-    avi.slide(70)
-    # for f in filter(lambda f:f.type == "I", avi.frames)[1:]:
-    #     if f.type == "I":
-    #         s = chr(random.randint(10, 230)) * len(f.binary)
-    #         f.binary = s
-    
-    avi.write(sys.argv[2])
